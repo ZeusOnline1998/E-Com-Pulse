@@ -9,4 +9,5 @@ urlpatterns = [
     path('get_user_details/', views.get_user_details, name='get-user=details'),
     path('get_products_list/', views.get_products_list, name='get-products-list'),
     path('get_product_details/', views.get_product_details, name='get-product-details'),
+    path('get_keyword_suggestions/', views.get_keyword_suggestions, name='get-keyword-suggestions'),
 ]

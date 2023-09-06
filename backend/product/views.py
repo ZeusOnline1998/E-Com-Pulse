@@ -5,13 +5,18 @@ from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from .models import CustomUser, Product, Platform, ProductDetails
-from .serializers import ProductDetailsPlatformSerializer
-
+from .models import CustomUser, Product, Platform, ProductDetails, KeywordSearchResult, ProductArea
+from datetime import timedelta
 # jwt_payload_handler = api_settings.JWT_PAYLOAD_HANDLER
 # jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
 
 # Create your views here.
+time_range = {
+    1: timedelta(days=1),
+    2: timedelta(days=7),
+    2: timedelta(days=14),
+}
+
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
 
@@ -107,3 +112,35 @@ def get_product_details(request):
     }
 
     return Response(context)
+
+@api_view(['GET'])
+def get_keyword_suggestions(request):
+    response = []
+
+    platform = request.GET['platform']
+    duration = request.GET['duration']
+    duration = time_range[int(duration)]
+    print(duration)
+    keyword = request.GET['keyword']
+
+    keyword_result = KeywordSearchResult.objects.filter(platform=platform, keyword=keyword)
+    for data in keyword_result:
+        keyword_platform = data.platform.platform_name
+        keyword_pincode = data.area.pincode
+        # keyword_product_area_joint = ProductArea.objects.filter(area=keyword_pincode)[0]
+        # keyword_product_id = keyword_product_area_joint.product
+        # keyword_product_area = keyword_product_area_joint.area
+        # keyword_product = keyword_product_id.product_name
+        keyword_product = data.keyword.keyword
+        keyword_product_name = data.product_name
+        keyword_duration = data.crawl_date
+
+        context = {
+            "platform": keyword_platform,
+            "product": keyword_product,
+            "product_name": keyword_product_name,
+            "duration": keyword_duration
+        }
+        response.append(context)
+    return Response(response)
+    return Response({"foo": "bar"})
