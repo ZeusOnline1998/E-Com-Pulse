@@ -9,6 +9,7 @@ urlpatterns = [
     path('check_access_token/', views.check_access_token, name='check-access-token'),
     path('get_user_details/', views.get_user_details, name='get-user=details'),
     path('get_products_list/', views.get_products_list, name='get-products-list'),
+    path('get_product_rating/', views.get_product_rating, name='get-product-rating'),
     path('get_product_details/', views.get_product_details, name='get-product-details'),
     path('get_keyword_suggestions/', views.get_keyword_suggestions, name='get-keyword-suggestions'),
     path('get_keyword_list/', views.get_keyword_list, name='get-keyword-list'),

@@ -90,7 +90,7 @@ def get_products_list(request):
     platform = request.GET['platform']
     products = Product.objects.filter(platform=platform)
     for product in products:
-        response = []
+        # response = []
         platform = Platform.objects.get(id=product.platform.id)
         yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=1))
         today_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now())
@@ -124,6 +124,34 @@ def get_products_list(request):
             context['product_details_id'] = details.id
             response.append(context)
     return Response(response)
+
+
+@api_view(['GET'])
+def get_product_rating(request):
+    response = []
+    platform = 1
+    products = Product.objects.filter(platform=platform)
+    for product in products:
+        platform = Platform.objects.get(id=product.platform.id)
+        today_list_data = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now()).distinct('product')
+        yesterday_list_data = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=1)).distinct('product')
+        for data in today_list_data:
+            context = {}
+            
+            context['product_name'] = product.product_name
+            context['platform'] = platform.platform_name.title()
+            context['today_rating'] = float(data.overall_rating)
+            for yes in yesterday_list_data:
+                if (yes.product == data.product):
+                    context['last_rating'] = float(yes.overall_rating)
+                    break
+                else:
+                    context['last_rating'] = 'No rating'
+            response.append(context)
+
+    return Response(response)
+        # return Response(data.values())
+    return Response({'foo': 'bar'})
 
 @api_view(['GET'])
 def get_product_details(request):
