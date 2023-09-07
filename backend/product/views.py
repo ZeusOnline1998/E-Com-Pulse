@@ -5,10 +5,12 @@ from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from .models import CustomUser, Product, Platform, ProductDetails, KeywordSearchResult, ProductArea
+from .models import CustomUser, Product, Platform, ProductDetails, KeywordSearchResult, ProductArea, KeywordTbl, ProjectIdentifier
 from datetime import timedelta, datetime
+from .serializers import KeywordListSerializer, PlatformListSerializer, BrandListSerializer
 # jwt_payload_handler = api_settings.JWT_PAYLOAD_HANDLER
 # jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
+from rest_framework import status
 
 # Create your views here.
 time_range = {
@@ -43,6 +45,35 @@ def user_login(request):
     return Response({"error": "Invalid Credentials"})
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_access_token(request):
+    user = request.user
+    # Check if the access token is expired
+    access_token = AccessToken.for_user(user)
+    expiration_timestamp = access_token.payload.get("exp", None)
+
+    if expiration_timestamp:
+        current_timestamp = int(datetime.timestamp(datetime.now()))
+        if current_timestamp > int(expiration_timestamp):
+            refresh_token = RefreshToken.for_user(user)
+            if refresh_token.is_expired:
+                # Both access and refresh tokens are expired; generate new tokens
+                new_access_token = AccessToken.for_user(user)
+                new_refresh_token = RefreshToken.for_user(user)
+                return Response({
+                    'access': str(new_access_token),
+                    'refresh': str(new_refresh_token),
+                }, status=status.HTTP_200_OK)
+            else:
+                # Refresh token is valid; generate a new access token
+                new_access_token = AccessToken.for_user(user)
+                return Response({'access': str(new_access_token)}, status=status.HTTP_200_OK)
+
+    # Access token is still valid
+    return Response({'message': 'Access token is valid'}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
 def get_user_details(request):
@@ -68,10 +99,11 @@ def get_products_list(request):
         for details in today_product_details:
             context = {}
             product_name = product.product_name
+            context['product_id'] = details.product.id
             context['platform'] = platform.platform_name
             context['product_name'] = product_name
             for data in yesterday_product_details:
-                if (data.seller_name == details.seller_name and data.product == details.product and data.platform == details.platform and data.area == details.area):
+                if (data.product == details.product and data.platform == details.platform and data.area == details.area):
                     # print("Something")
                     if (details.price > data.price):
                         context['change'] = 1
@@ -104,6 +136,7 @@ def get_product_details(request):
     product_platform = product_details.platform.platform_name
     product_brand = product_details.product.project_identifier.brand
     product_ratings = product_details.overall_rating
+    product_total_rating = product_details.total_ratings
     product_five_stars_rating = product_details.five_stars_rating
     product_four_stars_rating = product_details.four_stars_rating
     product_three_stars_rating = product_details.three_stars_rating
@@ -119,6 +152,7 @@ def get_product_details(request):
         'platform': product_platform,
         'brand': product_brand,
         'ratings': product_ratings,
+        'total_ratings': product_total_rating,
         'five_stars_rating': product_five_stars_rating,
         'four_stars_rating': product_four_stars_rating,
         'three_stars_rating': product_three_stars_rating,
@@ -164,4 +198,20 @@ def get_keyword_suggestions(request):
     return Response(response)
     return Response({"foo": "bar"})
 
-# 
+@api_view(['GET'])
+def get_keyword_list(request):
+    keywords = KeywordTbl.objects.all()
+    serializer = KeywordListSerializer(keywords, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def get_platform_list(request):
+    platform = Platform.objects.all()
+    serializer = PlatformListSerializer(platform, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def get_brand_list(request):
+    brand = ProjectIdentifier.objects.all()
+    serializer = BrandListSerializer(brand, many=True)
+    return Response(serializer.data)
