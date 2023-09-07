@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .models import CustomUser, Product, Platform, ProductDetails, KeywordSearchResult, ProductArea
-from datetime import timedelta
+from datetime import timedelta, datetime
 # jwt_payload_handler = api_settings.JWT_PAYLOAD_HANDLER
 # jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
 
@@ -61,13 +61,32 @@ def get_products_list(request):
     for product in products:
         response = []
         platform = Platform.objects.get(id=product.platform.id)
-        product_details = ProductDetails.objects.filter(product=product, platform=platform)
-        for details in product_details:
+        yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=1))
+        today_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now())
+        # return Response(product_details)
+        # return Response(product_details.values())
+        for details in today_product_details:
             context = {}
             product_name = product.product_name
             context['platform'] = platform.platform_name
             context['product_name'] = product_name
-            context['price'] = details.price
+            for data in yesterday_product_details:
+                if (data.seller_name == details.seller_name and data.product == details.product and data.platform == details.platform and data.area == details.area):
+                    # print("Something")
+                    if (details.price > data.price):
+                        context['change'] = 1
+                        context['yesterday_price'] = data.price
+                    elif (details.price == data.price):
+                        context['change'] = 0
+                        context['yesterday_price'] = data.price
+                    else:
+                        context['change'] = -1
+                        context['yesterday_price'] = data.price
+                # else:
+                #     context['change'] = 2
+                #     context['yesterday_price'] = 'No Data'
+            context['seller'] = details.seller_name
+            context['today_price'] = details.price
             context['date'] = details.crawl_date
             context['overall_rating'] = details.overall_rating
             context['product_details_id'] = details.id
@@ -144,3 +163,5 @@ def get_keyword_suggestions(request):
         response.append(context)
     return Response(response)
     return Response({"foo": "bar"})
+
+# 
