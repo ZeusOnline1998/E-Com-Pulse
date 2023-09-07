@@ -101,6 +101,7 @@ def get_products_list(request):
             product_name = product.product_name
             context['product_id'] = details.product.id
             context['platform'] = platform.platform_name
+            context['platform_id'] = platform.id
             context['product_name'] = product_name
             for data in yesterday_product_details:
                 if (data.product == details.product and data.platform == details.platform and data.area == details.area):
@@ -193,6 +194,55 @@ def get_product_details(request):
     }
 
     return Response(context)
+
+@api_view(['GET'])
+def get_product_details_2(request):
+
+    product_id = request.GET['product_id']
+    platform = request.GET['platform_id']
+    response = {}
+    try:
+        products = ProductDetails.objects.filter(product=product_id, platform=platform, crawl_date=datetime.now())
+    except:
+        products = ProductDetails.objects.filter(product=product_id, platform=platform, crawl_date=datetime.now()-timedelta(days=1))
+    product_name = products[0].product.product_name
+    product_platform = products[0].platform.platform_name
+    product_brand = products[0].product.project_identifier.brand
+    product_ratings = products[0].overall_rating
+    product_total_rating = products[0].total_ratings
+    product_five_stars_rating = products[0].five_stars_rating
+    product_four_stars_rating = products[0].four_stars_rating
+    product_three_stars_rating = products[0].three_stars_rating
+    product_two_stars_rating = products[0].two_stars_rating
+    product_one_star_rating = products[0].one_star_rating
+    seller = []
+    for product in products:
+        product_price = product.price
+        product_availability = product.availability
+        product_seller = product.seller_name
+        product_main_seller = product.main_seller
+        context = {
+            "price": product_price,
+            "availability": product_availability,
+            "seller": product_seller,
+            "main_seller": product_main_seller
+        }
+        seller.append(context)
+    response = {
+        'name': product_name,
+        'platform': product_platform,
+        'brand': product_brand,
+        'ratings': product_ratings,
+        'total_ratings': product_total_rating,
+        'five_stars_rating': product_five_stars_rating,
+        'four_stars_rating': product_four_stars_rating,
+        'three_stars_rating': product_three_stars_rating,
+        'two_stars_rating': product_two_stars_rating,
+        'one_star_rating': product_one_star_rating,
+        'seller': seller
+    }
+    return Response(response)
+    return Response({"foo": "bar"})
 
 @api_view(['GET'])
 def get_keyword_suggestions(request):

@@ -11,6 +11,7 @@ urlpatterns = [
     path('get_products_list/', views.get_products_list, name='get-products-list'),
     path('get_product_rating/', views.get_product_rating, name='get-product-rating'),
     path('get_product_details/', views.get_product_details, name='get-product-details'),
+    path('get_product_details_2/', views.get_product_details_2, name='get-product-details-2'),
     path('get_keyword_suggestions/', views.get_keyword_suggestions, name='get-keyword-suggestions'),
     path('get_keyword_list/', views.get_keyword_list, name='get-keyword-list'),
     path('get_platform_list/', views.get_platform_list, name='get-platform-list'),
