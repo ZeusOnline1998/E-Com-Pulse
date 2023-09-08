@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .models import CustomUser, Product, Platform, ProductDetails, KeywordSearchResult, ProductArea, KeywordTbl, ProjectIdentifier
 from datetime import timedelta, datetime
-from .serializers import KeywordListSerializer, PlatformListSerializer, BrandListSerializer
+from .serializers import KeywordListSerializer, PlatformListSerializer, BrandListSerializer, KeywordSearchResultSerializer, ProductListSerializer
 # jwt_payload_handler = api_settings.JWT_PAYLOAD_HANDLER
 # jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
 from rest_framework import status
@@ -16,7 +16,12 @@ from rest_framework import status
 time_range = {
     1: timedelta(days=1),
     2: timedelta(days=7),
-    2: timedelta(days=14),
+    3: timedelta(days=14),
+}
+
+keyword_time_range = {
+    "1": timedelta(days=0),
+    "2": timedelta(days=7)
 }
 
 def get_tokens_for_user(user):
@@ -87,13 +92,25 @@ def get_user_details(request):
 @api_view(['GET'])
 def get_products_list(request):
     response = []
-    platform = request.GET['platform']
-    products = Product.objects.filter(platform=platform)
+    platform_id = request.GET['platform']
+    products = Product.objects.filter(platform=platform_id)
     for product in products:
         # response = []
         platform = Platform.objects.get(id=product.platform.id)
-        yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=1))
-        today_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now())
+        if (platform_id == 1):
+            try:
+                yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=datetime.now() - timedelta(days=1))
+                today_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=datetime.now())
+                
+            except Exception:
+                yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=datetime.now() - timedelta(days=2))
+                today_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=datetime.now() - timedelta(days=1))
+        else:
+            yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=1)).distinct('product_id')
+            today_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now()).distinct('product_id')
+
+        # rating_data = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now()).distinct('product')
+        # last_rating_data = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=1)).distinct('product')
         # return Response(product_details)
         # return Response(product_details.values())
         for details in today_product_details:
@@ -128,9 +145,9 @@ def get_products_list(request):
 
 
 @api_view(['GET'])
-def get_product_rating(request):
+def get_products_rating(request):
     response = []
-    platform = 1
+    platform = request.GET['platform_id']
     products = Product.objects.filter(platform=platform)
     for product in products:
         platform = Platform.objects.get(id=product.platform.id)
@@ -141,7 +158,7 @@ def get_product_rating(request):
             
             context['product_name'] = product.product_name
             context['platform'] = platform.platform_name.title()
-            context['today_rating'] = float(data.overall_rating)
+            context['current_rating'] = float(data.overall_rating)
             for yes in yesterday_list_data:
                 if (yes.product == data.product):
                     context['last_rating'] = float(yes.overall_rating)
@@ -289,7 +306,46 @@ def get_platform_list(request):
     return Response(serializer.data)
 
 @api_view(['GET'])
+def get_duration_list(request):
+    context = {
+        1: "Today",
+        2: "Last 7 Days",
+    }
+
+    return Response(context)
+
+@api_view(['GET'])
 def get_brand_list(request):
     brand = ProjectIdentifier.objects.all()
     serializer = BrandListSerializer(brand, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def get_performance_product_list(request):
+
+    response = []
+    brand = request.GET['brand']
+    products = Product.objects.filter(project_identifier=brand)
+    serializer = ProductListSerializer(products, many=True)
+    return Response(serializer.data)
+    # for product in products:
+    #     context = {}
+    #     context['product_id'] = product.id
+    #     context['product_name'] = product.product_name
+    #     context['platform'] = product.platform.id
+    #     context['platform_name'] = product.platform.platform_name.title()
+
+    #     response.append(context)
+    # return Response(response)
+    # return Response({'foo':'bar'})
+
+@api_view(['GET'])
+def get_keyword_search_result(request):
+
+    platform = request.GET['platform']
+    duration = keyword_time_range[request.GET['duration']]
+    keyword = request.GET['keyword']
+
+    result = KeywordSearchResult.objects.filter(platform=platform, crawl_date__gte=datetime.now() - duration, keyword=keyword)
+    serializer = KeywordSearchResultSerializer(result, many=True)
     return Response(serializer.data)
