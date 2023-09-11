@@ -57,3 +57,23 @@ class ProductListSerializer(ModelSerializer):
 
     def get_platform_name(self, obj):
         return Product.objects.get(id=obj.id).platform.platform_name.title()
+
+
+class KeywordFilterDataSerializer(ModelSerializer):
+
+    platform = serializers.SerializerMethodField()
+    date = serializers.SerializerMethodField()
+    keyword = serializers.SerializerMethodField()
+
+    class Meta:
+        model = KeywordSearchResult
+        fields = ['product_rank', 'product_name', 'keyword', 'platform', 'date']
+
+    def get_keyword(self, obj):
+        return KeywordTbl.objects.get(id=obj.keyword_id).keyword
+
+    def get_platform(self, obj):
+        return Platform.objects.get(id=obj.platform_id).platform_name.title()
+
+    def get_date(self, obj):
+        return KeywordSearchResult.objects.get(id=obj.id).crawl_date

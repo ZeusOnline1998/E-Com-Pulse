@@ -7,10 +7,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .models import CustomUser, Product, Platform, ProductDetails, KeywordSearchResult, ProductArea, KeywordTbl, ProjectIdentifier
 from datetime import timedelta, datetime
-from .serializers import KeywordListSerializer, PlatformListSerializer, BrandListSerializer, KeywordSearchResultSerializer, ProductListSerializer
+from django.db.models import Max, F
+from .serializers import KeywordListSerializer, KeywordFilterDataSerializer, PlatformListSerializer, BrandListSerializer, KeywordSearchResultSerializer, ProductListSerializer
 # jwt_payload_handler = api_settings.JWT_PAYLOAD_HANDLER
 # jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
 from rest_framework import status
+import pandas as pd
+from io import BytesIO
+from django.http import HttpResponse
 
 # Create your views here.
 time_range = {
@@ -92,22 +96,30 @@ def get_user_details(request):
 @api_view(['GET'])
 def get_products_list(request):
     response = []
-    platform_id = request.GET['platform']
+    platform_id = int(request.GET['platform'])
     products = Product.objects.filter(platform=platform_id)
     for product in products:
         # response = []
         platform = Platform.objects.get(id=product.platform.id)
         if (platform_id == 1):
-            try:
-                yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=datetime.now() - timedelta(days=1))
-                today_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=datetime.now())
-                
-            except Exception:
-                yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=datetime.now() - timedelta(days=2))
-                today_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=datetime.now() - timedelta(days=1))
+            print("hello")
+            latest_date = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes').aggregate(latest_date=Max('crawl_date'))['latest_date']
+            print(latest_date)
+            # return Response({"foo": "bar"})
+            today_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=latest_date)
+            # return Response(today_product_details.values())
+            yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=latest_date - timedelta(days=1))
+            # if (len(today_product_details) == 0):
+            #     yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=datetime.now() - timedelta(days=2))
+            #     today_product_details = ProductDetails.objects.filter(product=product, platform=platform, main_seller='Yes', crawl_date=datetime.now() - timedelta(days=1))
+            #     print(len(today_product_details))
+
         else:
             yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=1)).distinct('product_id')
             today_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now()).distinct('product_id')
+            if (len(today_product_details) == 0):
+                yesterday_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=2)).distinct('product_id')
+                today_product_details = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=1)).distinct('product_id')
 
         # rating_data = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now()).distinct('product')
         # last_rating_data = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=1)).distinct('product')
@@ -151,8 +163,9 @@ def get_products_rating(request):
     products = Product.objects.filter(platform=platform)
     for product in products:
         platform = Platform.objects.get(id=product.platform.id)
-        today_list_data = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now()).distinct('product')
-        yesterday_list_data = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=datetime.now() - timedelta(days=1)).distinct('product')
+        latest_date = ProductDetails.objects.filter(product=product, platform=platform).aggregate(latest_date=Max('crawl_date'))['latest_date']
+        today_list_data = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=latest_date).distinct('product')
+        yesterday_list_data = ProductDetails.objects.filter(product=product, platform=platform, crawl_date=latest_date - timedelta(days=2)).distinct('product')
         for data in today_list_data:
             context = {}
             
@@ -218,10 +231,10 @@ def get_product_details_2(request):
     product_id = request.GET['product_id']
     platform = request.GET['platform_id']
     response = {}
-    try:
-        products = ProductDetails.objects.filter(product=product_id, platform=platform, crawl_date=datetime.now())
-    except:
-        products = ProductDetails.objects.filter(product=product_id, platform=platform, crawl_date=datetime.now()-timedelta(days=1))
+
+    latest_date = ProductDetails.objects.filter(product=product_id, platform=platform).aggregate(latest_date=Max('crawl_date'))['latest_date']
+    products = ProductDetails.objects.filter(product=product_id, platform=platform, crawl_date=latest_date)
+
     product_name = products[0].product.product_name
     product_platform = products[0].platform.platform_name
     product_brand = products[0].product.project_identifier.brand
@@ -348,4 +361,26 @@ def get_keyword_search_result(request):
 
     result = KeywordSearchResult.objects.filter(platform=platform, crawl_date__gte=datetime.now() - duration, keyword=keyword)
     serializer = KeywordSearchResultSerializer(result, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+def get_keyword_filtered_data(request):
+
+    arr = request.data['arr']
+    arr = map(int, arr)
+
+    result = KeywordSearchResult.objects.filter(id__in=arr)
+    df = pd.DataFrame(list(result))
+
+    excel_buffer = BytesIO()
+
+    df.to_excel(excel_buffer, index=False)
+
+    response = HttpResponse(excel_buffer.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="data.xlsx"'
+
+    return response
+    # print(result)
+    serializer = KeywordFilterDataSerializer(result, many=True)
     return Response(serializer.data)
